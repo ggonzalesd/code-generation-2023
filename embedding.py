@@ -5,13 +5,13 @@ from torch import nn
 import torch.nn.functional as F
 
 def create_sin_cos_encoding(d_model, max_seq_length, dtype, device):
-  kargs = {
+  factory_kwargs = {
     'dtype': dtype,
     'device': device
   }
-  pe = torch.zeros(max_seq_length, d_model, **kargs)
-  position = torch.arange(0, max_seq_length, **kargs).unsqueeze(1)
-  div_term = torch.exp(torch.arange(0, d_model, 2, **kargs).float() * -(math.log(1e+4) / d_model))
+  pe = torch.zeros(max_seq_length, d_model, **factory_kwargs)
+  position = torch.arange(0, max_seq_length, **factory_kwargs).unsqueeze(1)
+  div_term = torch.exp(torch.arange(0, d_model, 2, **factory_kwargs).float() * -(math.log(1e+4) / d_model))
 
   pe[:, 0::2] = torch.sin(position * div_term)
   pe[:, 1::2] = torch.cos(position * div_term)
@@ -60,7 +60,7 @@ class StepEncoding(nn.Module):
 
 class MaskedForwardDiffusion(nn.Module):
   def __init__(self, max_steps, dtype=None, device=None):
-    self.kargs = {
+    self.factory_kwargs = {
       'dtype': dtype,
       'device': device
     }
@@ -72,7 +72,7 @@ class MaskedForwardDiffusion(nn.Module):
     assert steps.dim() == 1, 'steps must to have shape (batch)'
     assert mask.dim() == 2, 'mask must to have shape (batch, seq)'
 
-    noise = torch.randn_like(X, **self.kargs)
+    noise = torch.randn_like(X, **self.factory_kwargs)
 
     noise_intense = 1.0 - (steps / self.max_steps).unsqueeze(-1)
     noise_intense = 1.0 - torch.cos(torch.pi * noise_intense / 2)
@@ -87,10 +87,10 @@ class MaskedForwardDiffusion(nn.Module):
 
 class EmbeddingBlockFirst(nn.Module):
   def __init__(self, vocab_size, d_model, pad_idx, max_steps, dtype=None, device=None):
-    kargs = { 'dtype': dtype, 'device': device }
+    factory_kwargs = { 'dtype': dtype, 'device': device }
     super(EmbeddingBlockFirst, self).__init__()
-    self.word_embedding = nn.Embedding(vocab_size, d_model, pad_idx, **kargs)
-    self.masked_forward_diffusion = MaskedForwardDiffusion(max_steps, **kargs)
+    self.word_embedding = nn.Embedding(vocab_size, d_model, pad_idx, **factory_kwargs)
+    self.masked_forward_diffusion = MaskedForwardDiffusion(max_steps, **factory_kwargs)
 
   def forward(self, X, steps, mask):
     assert X.dim() == 2, 'X must to have shape (batch, seq)'
@@ -103,11 +103,11 @@ class EmbeddingBlockFirst(nn.Module):
 
 class EmbeddingBlockSecond(nn.Module):
   def __init__(self, d_model, max_steps, dropout=0.1, dtype=None, device=None):
-    kargs = { 'dtype': dtype, 'device': device }
+    factory_kwargs = { 'dtype': dtype, 'device': device }
     super(EmbeddingBlockSecond, self).__init__()
-    self.pe = PositionalEncoding(d_model, 512, **kargs)
-    self.se = StepEncoding(d_model, max_steps, **kargs)
-    self.norm = nn.LayerNorm(d_model, **kargs)
+    self.pe = PositionalEncoding(d_model, 512, **factory_kwargs)
+    self.se = StepEncoding(d_model, max_steps, **factory_kwargs)
+    self.norm = nn.LayerNorm(d_model, **factory_kwargs)
     self.dropout = nn.Dropout(dropout)
   
   def forward(self, X, steps, mask):
@@ -123,10 +123,10 @@ class EmbeddingBlockSecond(nn.Module):
 
 class EmbeddingBlock(nn.Module):
   def __init__(self, vocab_size, d_model, pad_idx, max_steps, dropout=0.1, dtype=None, device=None):
-    kargs = { 'dtype': dtype, 'device': device }
+    factory_kwargs = { 'dtype': dtype, 'device': device }
     super(EmbeddingBlock, self).__init__()
-    self.first = EmbeddingBlockFirst(vocab_size, d_model, pad_idx, max_steps, **kargs)
-    self.second = EmbeddingBlockSecond(d_model, max_steps, dropout, **kargs)
+    self.first = EmbeddingBlockFirst(vocab_size, d_model, pad_idx, max_steps, **factory_kwargs)
+    self.second = EmbeddingBlockSecond(d_model, max_steps, dropout, **factory_kwargs)
   
   def forward(self, X, steps, mask):
     assert X.dim() == 2, 'X must to have shape (batch, seq)'
